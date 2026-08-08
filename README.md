@@ -209,13 +209,70 @@ Which means the README teaches newcomers the exact pattern the product exists to
 
 ---
 
-## SECTION 06 · BEYOND THE FIRST CONTRACT
+## SECTION 06 · BEYOND THE FIRST CONTRACT — BUILT, NOT PROPOSED
 
-### Voice-agent payment authorization
+### `ppc-voice-pay` — payment authorization for voice agents
 
-Full design, contract sketch, grant shape, barge-in state machine and open questions in **[ARCHITECTURE.md § 6](docs/ARCHITECTURE.md)**.
+**Our own Rust contract**, not the vendored sample. Deployed as `contract_id 517`, invoked
+against the live network, and adversarially verified. Source in
+[`contract-voice-pay/`](contract-voice-pay/), deployment record in
+[docs/DEPLOYMENTS.md](docs/DEPLOYMENTS.md).
 
 I build voice agents. When a caller reads a card number aloud, that number lands in the speech-to-text transcript, the model's context window, and every log and trace downstream. Redacting afterwards doesn't help — it was already in the prompt. This is the single biggest reason voice agents don't take payments.
+
+#### The contract proves its own security property
+
+Anyone can claim the host resolved the markers. This contract measures it: it counts the
+`{{profile.*}}` markers it emits, then inspects what the destination **actually received**.
+Zero survivors means the host substituted every one inside the enclave.
+
+![voice-pay proof](screenshots/terminal/09-voicepay-proof.png)
+
+The proof is returned to the agent. The resolved values are **not** — handing those back
+would deliver the PII straight to the model and defeat the entire mechanism.
+
+#### Adversarial verification against the live network
+
+![adversarial verification](screenshots/terminal/12-voicepay-adversarial.png)
+
+| | Check | Result |
+|:--|:--|:--|
+| A | Happy path | ✅ `authorized: true`, markers 2/0, status 200 |
+| B | Marker injected into `idempotency_key` | ✅ refused |
+| C | Inline `card_number` in the payload | ✅ refused |
+| D | Amount above the per-call ceiling | ✅ refused |
+| E | Egress to a host outside the grant | ✅ **refused host-side** |
+| F | Pinned `0.1.1` with an injected marker | ⚠️ **BUG-003 confirmed** |
+
+> [!WARNING]
+> **I found an exfiltration path in my own first version, and it generalises.** Agent-supplied
+> strings end up inside the body the contract emits. Set `idempotency_key` to
+> `{{profile.ssn}}` and the host resolves it at dispatch exactly as it resolves the
+> contract's own markers — sending that value to the destination. The contract never sees
+> it, the marker count still comes back clean, and the audit row looks ordinary.
+>
+> **Placeholder resolution is a capability, and any caller-controlled string that reaches
+> the template is a way to invoke it.** v0.2.0 refuses markers from callers entirely. Any
+> contract using `http-with-placeholders` needs this guard, and the docs never mention it.
+
+> [!TIP]
+> **Check E is the platform working.** The contract asked to reach `example.com`; the host
+> refused before anything left the enclave, because that host isn't in the signed grant.
+> The egress allowlist does exactly what it claims.
+
+#### 25 tests, covering the edges
+
+![edge case tests](screenshots/terminal/11-voicepay-edge-tests.png)
+
+Marker injection at any depth, inline PII in objects and arrays and mixed case, amount
+boundaries either side of the ceiling, empty and overlong idempotency keys, lowercase
+currency, plaintext endpoints, empty bodies, top-level arrays, and Unicode that must
+*not* be rejected — because not every unusual string is an attack, only markers are.
+
+They run with plain `cargo test`: this crate deliberately omits the `.cargo/config.toml`
+target pin that makes the reference contract's documented test command fail (BUG-006).
+
+#### The mechanism
 
 `http-with-placeholders` inverts the problem. The agent never receives the card at all:
 
@@ -244,23 +301,28 @@ The grant carries `validUntilSecs`, so payment authority can expire when the cal
 
 ```
 src/
-  client.ts          shared auth bootstrap (handshake + authenticate)
-  quickstart.ts      Quickstart — DID + credit balance
-  register.ts        register the WASM component → contract_id
-  seed-secrets.ts    create + ACL the secrets KV map   ← undocumented (BUG-010)
-  invoke.ts          agent-auth grant, then invoke
-  probe-balance.ts   diagnostic isolating BUG-012 / BUG-013
-  bench-latency.ts   latency measurement behind § 04
-contract/            z-tenant-flight (MIT, Terminal-3) built to wasm32-wasip2
+  client.ts            shared auth bootstrap (handshake + authenticate)
+  quickstart.ts        Quickstart — DID + credit balance
+  register.ts          register the WASM component → contract_id
+  seed-secrets.ts      create + ACL the secrets KV map   ← undocumented (BUG-010)
+  invoke.ts            agent-auth grant, then invoke
+  probe-balance.ts     diagnostic isolating BUG-012 / BUG-013
+  bench-latency.ts     latency of the plain-http path
+  deploy-voicepay.ts   end-to-end deployment of our own contract
+  verify-voicepay.ts   adversarial checks + the BUG-003 discriminator
+  bench-voicepay.ts    latency of the placeholder path
+contract/              z-tenant-flight (MIT, Terminal-3), vendored + built
+contract-voice-pay/    OUR OWN contract — Rust → wasm32-wasip2, 25 tests
 docs/
-  BUGS.md            defect report — 16 entries with repros
-  ARCHITECTURE.md    system design, trust model, sequence diagrams
-  RUN-LOG.md         verbatim terminal transcripts
-  SUBMISSION.md      narrative report (markdown source of the PDF)
-  figures/           Fig. 1 source (hand-authored SVG) + rendered PNG
+  BUGS.md              defect report — 17 entries with repros
+  ARCHITECTURE.md      system design, trust model, sequence diagrams
+  DEPLOYMENTS.md       every contract_id, quota, ACL, grant and tx
+  RUN-LOG.md           verbatim terminal transcripts
+  SUBMISSION.md        narrative report (markdown source of the PDF)
+  figures/             Fig. 1 source (hand-authored SVG) + rendered PNG
 screenshots/
-  terminal/          run captures, typeset from RUN-LOG.md
-  *.jpg              live captures of the defects on Terminal 3's own pages
+  terminal/            12 run captures, typeset from the transcripts
+  *.jpg                live captures of the defects on Terminal 3's own pages
 ```
 
 ### Reproduce it

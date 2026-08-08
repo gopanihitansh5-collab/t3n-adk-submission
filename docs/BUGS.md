@@ -84,10 +84,57 @@ The page warns that registering a new version under an existing tail can cause p
 **pinned** versions to route to latest instead.
 
 **Expected:** A pinned version is pinned. That is the entire meaning of pinning.
-**Actual:** Documented as a caveat rather than treated as a defect.
-**Impact:** Silent behavioural change in production with no error surfaced. The docs'
-own mitigation — "keep your own record of every `contract_id`" — is a workaround for
-missing platform behaviour.
+
+**CONFIRMED empirically.** Originally filed from the documentation's own warning. I then
+built a discriminator that distinguishes which version actually executed, rather than
+trusting what the node reports.
+
+**Method.** Two versions of our contract `z:<tid>:voicepay` differ in one observable way:
+
+| Version | contract_id | Behaviour on `idempotency_key: "{{profile.first_name}}"` |
+|---|--:|---|
+| `0.1.1` | 516 | **accepts** it — no marker-injection guard exists in this build |
+| `0.2.0` | 517 | **refuses** it — the guard was added in this version |
+
+So invoking with `script_version` pinned to `0.1.1` and an injected marker is decisive:
+acceptance means 0.1.1 genuinely ran; refusal means 0.2.0 answered a 0.1.1 pin.
+
+**Repro**
+
+```typescript
+await t3n.executeAndDecode({
+  script_name: "z:<tid>:voicepay",
+  script_version: "0.1.1",              // ← pinned to the OLD version
+  function_name: "authorize-payment",
+  pii_did: tenantDid,
+  input: { amount_cents: 4250, currency: "GBP",
+           idempotency_key: "{{profile.first_name}}",   // 0.1.1 accepts this
+           endpoint: "https://postman-echo.com/post" },
+});
+```
+
+**Actual**
+
+```
+RPC Error: contract error: authorize-payment: bad input: placeholder markers are not
+accepted from callers. Marker injection would let a caller resolve arbitrary profile
+fields and exfiltrate them to the destination.
+```
+
+That message exists only in `0.2.0`. **The pin was ignored and the latest version
+executed.** No warning, no error, no indication in the response that a different
+version answered.
+
+Reproduce with `src/verify-voicepay.ts`, check `[F]`.
+
+**Impact.** This is a silent-correctness defect, and version pinning is exactly the
+mechanism people reach for to avoid it. A tenant who pins a reviewed, audited version of a
+payment contract will silently begin executing whatever was registered most recently —
+including a build that has not been through review. The blast radius is largest precisely
+where pinning matters most.
+
+The docs' own mitigation — "keep your own record of every `contract_id`" — does not help,
+because the id is recorded at registration and the substitution happens at dispatch.
 
 ---
 

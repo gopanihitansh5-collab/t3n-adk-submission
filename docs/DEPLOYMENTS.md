@@ -16,11 +16,21 @@ durable handle, and it is what the KV read-ACL is keyed on.
 | contract_id | Canonical name | Version | WASM bytes | Source | Status |
 |--:|:--|:--|--:|:--|:--|
 | **511** | `z:6ec29eeb…32ed:flight` | `0.4.1` | 197,904 | `contract/` — vendored `z-tenant-flight` (MIT) | active · invoked |
-| **515** | `z:6ec29eeb…32ed:voicepay` | `0.1.0` | 159,329 | `contract-voice-pay/` — **our own** | superseded by 516 |
-| **516** | `z:6ec29eeb…32ed:voicepay` | `0.1.1` | 158,806 | `contract-voice-pay/` — **our own** | active · invoked · verified |
+| **515** | `z:6ec29eeb…32ed:voicepay` | `0.1.0` | 159,329 | `contract-voice-pay/` — **our own** | superseded |
+| **516** | `z:6ec29eeb…32ed:voicepay` | `0.1.1` | 158,806 | `contract-voice-pay/` — **our own** | superseded · used as the BUG-003 control |
+| **517** | `z:6ec29eeb…32ed:voicepay` | `0.2.0` | 161,495 | `contract-voice-pay/` — **our own** | active · invoked · adversarially verified |
 
-`515 → 516` exists because `0.1.0` referenced `{{profile.email_address}}`, which cannot
-resolve ([BUG-017](BUGS.md)). `0.1.1` narrows to fields that do.
+`515 → 516` because `0.1.0` referenced `{{profile.email_address}}`, which cannot resolve
+([BUG-017](BUGS.md)); `0.1.1` narrows to fields that do.
+
+`516 → 517` adds the marker-injection guard. Keeping 516 registered was deliberate: the
+behavioural difference between the two is what makes the [BUG-003](BUGS.md) discriminator
+work.
+
+> **Note on these three ids.** Per BUG-003, a `script_version` pin does not reliably select
+> the build it names — we proved 517 answering a `0.1.1` pin. Treat the **highest**
+> registered version under a tail as the one that will actually execute, regardless of what
+> you pin.
 
 ## Tenant quotas observed
 
@@ -88,6 +98,26 @@ survived to the destination**:
 ```
 
 Held across 8 consecutive benchmark rounds — `markers_unresolved = 0` every time.
+
+## Adversarial verification against the live network
+
+`src/verify-voicepay.ts`, run against `contract_id 517`. Native tests prove the logic;
+these prove the deployed contract and the platform's own controls.
+
+| | Check | Result |
+|:--|:--|:--|
+| A | Happy path | ✅ `authorized: true`, markers 2/0, status 200 |
+| B | Marker injected into `idempotency_key` | ✅ refused by the contract |
+| C | Inline `card_number` in the payload | ✅ refused by the contract |
+| D | Amount above the per-call ceiling | ✅ refused by the contract |
+| E | Egress to a host outside the grant | ✅ **refused host-side** — `egress denied: 'example.com' is not on this agent's allowedHosts` |
+| F | Pinned `0.1.1` with an injected marker | ⚠️ answered by the `0.2.0` guard — **BUG-003 confirmed** |
+
+**E is the platform's own control, and it works.** The contract asked to reach
+`example.com`; the host refused before anything left the enclave, because that host is not
+in the signed grant. That is the egress allowlist doing exactly its job.
+
+**F is the platform failing.** See [BUG-003](BUGS.md).
 
 ## Measured latency
 
