@@ -1,6 +1,7 @@
 # Terminal 3 ADK — Completed Quickstart & Walkthrough
 
-**Submitted by:** Hitansh Gopani — AI/ML Engineer, Pitch Perfekt Collective
+**Submitted by:** Hitansh Gopani — AI/ML Engineer
+**Contact:** gopanihitansh5@gmail.com · [@Hitansh54](https://x.com/Hitansh54)
 **Date:** 8 August 2026
 **Repo:** https://github.com/gopanihitansh5-collab/t3n-adk-submission
 **Agent / Tenant DID:** `did:t3n:6ec29eeb5cb122d05e006391d2c954b2390032ed`
@@ -140,7 +141,7 @@ product exists to prevent.
 ## Beyond the first contract: voice-agent payment authorization
 
 The reference contract protects PII in flight booking. The same primitive solves a problem
-we hit in production at Pitch Perfekt Collective, where we build voice agents.
+I keep hitting in my own work building voice agents.
 
 When a caller reads a card number to a voice agent, that number enters the speech-to-text
 transcript, the LLM context window, and every log and trace downstream. Redaction after the
