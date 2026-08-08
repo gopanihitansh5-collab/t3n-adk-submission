@@ -16,8 +16,23 @@
 | T5 agent ID | ✅ done — `whoami` resolves the DID on testnet |
 | T6 authorize + invoke | ✅ done — full TEE round trip, see below |
 | T7 consolidate bugs | ✅ 16 bugs filed, 2 corrected after verification |
-| T8 README + submission doc | ⏳ in progress |
-| T9 publish + SUBMIT | ⬜ |
+| T8 README + submission doc | ✅ done — README, SUBMISSION.md, RUN-LOG.md, 4 screenshots |
+| T9 publish | ✅ repo public; ⬜ Google Doc + submit form still on Hitansh |
+
+## Published
+
+- **GitHub (public):** https://github.com/gopanihitansh5-collab/t3n-adk-submission
+- **Formatted document:** https://claude.ai/code/artifact/85409ea2-3c8f-4809-9a26-ba58f60c1c34
+  (private by default — share from the page's share menu, or paste
+  `docs/SUBMISSION.md` into a Google Doc if the bounty requires Docs specifically)
+
+## Remaining
+
+1. Create the public Google Doc from `docs/SUBMISSION.md` + `screenshots/`, set
+   Share → Anyone with the link.
+2. Submit both links.
+3. **Rotate the GitHub PAT** — it was pasted in plaintext into a chat transcript.
+4. Bonus (post-submission): build `ppc-voice-pay` per PLAN.md Task 10.
 
 ## Walkthrough completed end-to-end ✅
 
