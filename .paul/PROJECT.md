@@ -1,44 +1,44 @@
-# PROJECT — T3N ADK Bounty Submission
+# PROJECT — T3N ADK Integration &amp; Evaluation
 
 **Status:** active · **Started:** 2026-08-08 · **Owner:** Hitansh Gopani (Pitch Perfekt Collective)
 
 ## What this is
 
-A competitive submission for the Terminal 3 ADK bounty. The task: under an Agent ID,
-complete the Quickstart and the Walkthrough from the T3 docs, screenshot the completion,
-and report every bug encountered.
+A first integration against the Terminal 3 ADK, evaluated as a prospective platform for
+building agents that handle sensitive data. Under an Agent ID: complete the Quickstart and
+the Walkthrough from the T3 docs, evidence the completion, and report every defect found
+along the way.
 
-## Deliverables (all three required for a valid submission)
+## Deliverables
 
 1. **Public GitHub repo** — code, bug log, run transcripts, screenshots
-2. **Public Google Doc** — narrative writeup embedding the screenshots and bug table
+2. **Written report** — narrative writeup embedding the screenshots and bug table
 3. **Screenshots + bug log** — evidence of completion, and every defect found
 
-## Judging criteria → how we win each
+## Quality bar
 
-| Criterion | Strategy |
+| Dimension | Standard held to |
 |---|---|
-| **Time to submit** (earlier/faster = better) | Ship core walkthrough + doc + repo, submit, *then* follow up with the bonus. Do not hold the submission hostage to the bonus. |
-| **Documentation quality** | Reproducible-in-5-minutes README, tee'd terminal transcripts as primary evidence, screenshots numbered and cross-referenced from the Doc. |
-| **Bug submission quality** | Every bug filed with severity, exact location, repro, expected vs actual, and a workaround. Correctness over volume — no speculative bugs. |
-| **Bonus: beyond the first contract** | A second contract for a real use case: voice-agent payment authorization. |
+| **Turnaround** | Complete the core walkthrough and publish, then extend. Don't hold the report hostage to the extension work. |
+| **Documentation** | Reproducible-in-5-minutes README, tee'd terminal transcripts as primary evidence, screenshots numbered and cross-referenced. |
+| **Defect reporting** | Every bug filed with severity, exact location, repro, expected vs actual, and a workaround. Correctness over volume — no speculative bugs. |
+| **Depth** | Go past the reference contract into a real use case: voice-agent payment authorization. |
 
 ## Scope decision (locked 2026-08-08)
 
-**Ship core fast → submit → bonus as a follow-up update.** Chosen over a single
-all-in-one submission because time-to-submit is explicitly scored and the bonus is
-additive, not gating.
+**Core walkthrough first, extension after.** The evaluation is only credible once the
+documented path is actually completed end to end; the second contract builds on that
+rather than substituting for it.
 
-## Bonus use case (locked 2026-08-08)
+## Use case under evaluation (locked 2026-08-08)
 
 **Voice-agent payment authorization.** A phone-booking agent where the caller's card
 and DOB never enter LLM context — they exist only as `{{profile.*}}` placeholders that
 the host resolves inside the TEE at dispatch time, closed out against the Stripe-backed
 test merchant.
 
-Chosen because it maps onto PPC's actual product line (VoxGate) — a grounded business
-case reads far better to judges than a toy — and because Terminal 3 publishes a
-first-party reference at
+Chosen because it maps onto my own voice-agent work (VoxGate) — a real constraint I hit
+in production, not a toy — and because Terminal 3 publishes a first-party reference at
 [`Terminal-3/adk-circle-call-centre-agent-demo`](https://github.com/Terminal-3/adk-circle-call-centre-agent-demo)
 to build against.
 
@@ -79,4 +79,4 @@ Invocation requires **three distinct identities**:
 
 - `.paul/PLAN.md` — task-by-task implementation plan
 - `.paul/STATE.md` — living status, updated as work lands
-- `docs/BUGS.md` — the bug log (a scored deliverable)
+- `docs/BUGS.md` — the defect report

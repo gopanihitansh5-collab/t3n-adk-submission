@@ -2,7 +2,7 @@
 
 # Terminal 3 ADK — Quickstart &amp; Walkthrough, Completed
 
-**Bounty submission** · Hitansh Gopani · 8 August 2026
+**Field report from a first integration** · Hitansh Gopani · 8 August 2026
 
 [Formatted submission (PDF)](docs/T3N-ADK-Submission-Hitansh-Gopani.pdf) ·
 [Bug report — 16 bugs](docs/BUGS.md) ·
@@ -259,7 +259,29 @@ flowchart TD
 The dashed node is the point: **the transcript and model context become safe to log**,
 because they never held anything sensitive. The grant carries `validUntilSecs`, so the
 payment authority can expire when the call ends rather than persisting as a standing
-credential — that's the part I most want to test next.
+credential.
+
+### Does it fit a live phone call? — measured
+
+A conversational turn has ~500–800 ms before it degrades. So I measured T3N instead of
+assuming ([`src/bench-latency.ts`](src/bench-latency.ts), 5 rounds, testnet):
+
+| Phase | Median | Min | Max |
+|---|--:|--:|--:|
+| Session establishment (handshake + auth) | **1,515 ms** | — | — |
+| Contract dispatch, no egress | **151 ms** | 96 ms | 393 ms |
+| Contract dispatch + real outbound HTTPS | **437 ms** | 418 ms | 455 ms |
+
+> [!IMPORTANT]
+> **A warm invocation fits inside a single conversational turn — but the session must be
+> pre-warmed.** At ~1.5 s, handshake and authentication cannot happen mid-call; the agent
+> needs an authenticated session open while the phone is still ringing. Dispatch overhead
+> alone is only 151 ms, so the enclave isn't the bottleneck — network egress is. That's a
+> good result for T3: confidential computing is not what costs you the conversation.
+
+The unsolved part is **barge-in during an in-flight authorization** — if the caller says
+"cancel that" 200 ms into a 437 ms payment, the payment completes anyway. Design and state
+machine in [ARCHITECTURE.md § 6](docs/ARCHITECTURE.md).
 
 ---
 

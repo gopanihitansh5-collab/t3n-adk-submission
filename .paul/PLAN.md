@@ -50,7 +50,7 @@ t3n-adk-submission/
 │   └── invoke.ts           Task 6 — grant auth, call the contract
 ├── contract/               z-tenant-flight (vendored, MIT, attribution kept)
 ├── docs/
-│   ├── BUGS.md             the scored deliverable
+│   ├── BUGS.md             the defect report
 │   ├── RUN-LOG.md          raw transcripts (redacted)
 │   └── SUBMISSION.md       Google Doc source-of-truth (paste into Docs)
 ├── screenshots/            NN-description.png, referenced from SUBMISSION.md
@@ -290,7 +290,7 @@ git commit -m "feat: register WASM contract, capture contract_id"
 
 ### Task 5: Register the Agent ID
 
-The bounty says "under ID" — this is the step that creates it.
+"Under ID" — this is the step that creates the agent identity.
 
 - [ ] **Step 1: Read the DID back from the network (never derive it locally)**
 

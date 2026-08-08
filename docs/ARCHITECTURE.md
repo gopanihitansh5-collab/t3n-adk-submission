@@ -218,8 +218,72 @@ interface contracts {
 That `validUntilSecs` is the part I am most interested in testing: a payment authority that
 expires when the phone call does, rather than persisting as a standing credential.
 
+### Does it fit the latency budget? — measured, not assumed
+
+This is where most voice-agent designs quietly fail, so I measured it rather than hand-waving.
+A conversational turn has roughly **500–800 ms** before the interaction degrades, and past
+**~1.5 s** it stops feeling like a conversation at all. A TEE contract call on the critical
+path of a live phone call either fits that budget or the design is dead.
+
+Measured against `z:<tid>:flight` on testnet, 5 rounds each
+([`src/bench-latency.ts`](../src/bench-latency.ts)):
+
+| Phase | Median | Min | Max |
+|---|--:|--:|--:|
+| Session establishment (handshake + authenticate) | **1,515 ms** | — | — |
+| Contract dispatch, no egress | **151 ms** | 96 ms | 393 ms |
+| Contract dispatch + real outbound HTTPS | **437 ms** | 418 ms | 455 ms |
+| *Egress cost (delta)* | *286 ms* | | |
+
+Three conclusions, and the first is the one that would have bitten me:
+
+**1. The session must be pre-warmed before the call connects.** At ~1.5 s, handshake and
+authentication cannot happen mid-conversation — that alone blows the entire budget. The
+agent needs an authenticated T3N session established while the phone is still ringing, held
+open for the duration. This is an architectural requirement, not an optimisation.
+
+**2. A warm invocation with egress fits inside one turn — with thin headroom.** 437 ms
+median sits under the 500 ms comfort threshold, so `authorize-payment` *can* run on the
+critical path. But the measurement was taken against a Duffel `401`, which is a fast
+rejection; a real Stripe authorization does more upstream work, and the max observed was
+455 ms. I would treat 500 ms as the ceiling and instrument p95 in production before
+committing to on-turn execution.
+
+**3. Dispatch overhead alone is cheap.** 151 ms for TEE dispatch plus WASM instantiation is
+low enough that the enclave is not the bottleneck — the network egress is. That is a good
+result for T3: the confidential-computing layer is not what costs you the conversation.
+
+### The unsolved part: barge-in during an in-flight authorization
+
+Voice agents must handle interruption — the caller talks over the agent, and the agent stops
+speaking immediately. That is well understood for speech. It is not well understood for a
+payment that is already in flight.
+
+If the caller says *"wait, no, cancel that"* 200 ms into a 437 ms authorization, the
+authorization is going to complete. The agent must then reconcile a spoken cancellation
+against a committed financial action:
+
+```mermaid
+stateDiagram-v2
+  [*] --> Listening
+  Listening --> Authorizing: caller confirms amount
+  Authorizing --> Committed: contract returns intent_id
+  Authorizing --> Contested: caller barges in mid-flight
+  Contested --> Committed: too late to stop — must reverse
+  Committed --> Reversing: void / refund the intent
+  Reversing --> Listening: confirm reversal aloud
+  Committed --> Listening: confirm success aloud
+```
+
+The honest design is **not** to try to cancel mid-flight. It is to make the window as small
+as possible, treat every authorization as reversible for a bounded period, and have the
+agent speak the outcome either way. `validUntilSecs` on the grant helps here: an authority
+that expires with the call limits how much damage a confused turn can do.
+
 **Open questions I would want T3's input on**
 
 1. Is edge tokenization before the LLM the intended pattern, or does T3 expect the raw value to reach the profile store by another route?
 2. Can `{{profile.*}}` resolve from a per-session profile rather than a durable user profile? A first-time caller has no stored profile.
 3. Does the ledger audit row capture enough for PCI evidence, or is it a pointer to something richer?
+4. Can an authenticated session be established ahead of time and held open across a call, or does something (idle timeout, key rotation) force a re-handshake? The 1.5 s cost makes this decisive for voice.
+5. Is there a documented p95 for contract dispatch, and does it change under concurrent load? My 437 ms median came from a single warm session with no contention.

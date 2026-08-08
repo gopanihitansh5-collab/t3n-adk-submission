@@ -24,7 +24,7 @@
 - **GitHub (public):** https://github.com/gopanihitansh5-collab/t3n-adk-submission
 - **Formatted document:** https://claude.ai/code/artifact/85409ea2-3c8f-4809-9a26-ba58f60c1c34
   (private by default — share from the page's share menu, or paste
-  `docs/SUBMISSION.md` into a Google Doc if the bounty requires Docs specifically)
+  `docs/SUBMISSION.md` into a Google Doc if a Docs link is needed specifically)
 
 ## Remaining
 
@@ -81,8 +81,8 @@ Supplying a real Duffel test token is the only thing between this and live offer
 
 ## Decisions log
 
-- **2026-08-08** — Ship core fast, submit, then follow up with the bonus. Time-to-submit is
-  explicitly scored; the bonus is additive, not gating.
+- **2026-08-08** — Complete and publish the core walkthrough first, then extend. The
+  evaluation is only credible once the documented path actually runs end to end.
 - **2026-08-08** — Bonus use case = voice-agent payment authorization (VoxGate tie-in),
   building against `Terminal-3/adk-circle-call-centre-agent-demo`.
 - **2026-08-08** — Vendor `z-tenant-flight` rather than reimplement; MIT, attribution kept.
