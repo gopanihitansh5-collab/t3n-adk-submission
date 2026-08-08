@@ -1,0 +1,165 @@
+<!doctype html><html><head><meta charset="utf-8"><style>
+  body{margin:0;background:#fff;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+  svg{display:block}
+</style></head><body>
+<svg viewBox="0 0 1330 556" width="1330" height="556" xmlns="http://www.w3.org/2000/svg" role="img"
+     aria-label="Terminal 3 reference architecture: four planes separated by trust boundary. Untrusted agent plane holds only placeholder references; the authorization plane gates by grant, function allowlist and egress allowlist; the enclave plane resolves real PII inside the TEE; the destination receives real values. Identity, attestation and audit underpin all planes.">
+  <defs>
+    <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#46566B"/>
+    </marker>
+  </defs>
+
+  <rect x="0" y="0" width="1330" height="556" fill="#FBFCFD" stroke="#D6DDE4"/>
+
+  <!-- ============ TRUST BOUNDARY ============ -->
+  <line x1="645" y1="52" x2="645" y2="362" stroke="#A32E27" stroke-width="1.5" stroke-dasharray="6 5"/>
+  <text x="645" y="44" text-anchor="middle" font-size="9.5" letter-spacing="1.4" fill="#A32E27">TRUST BOUNDARY</text>
+
+  <!-- ============ PLANE 1 · UNTRUSTED ============ -->
+  <rect x="24" y="52" width="276" height="300" fill="#F1F4F7" stroke="#94A3B4" rx="3"/>
+  <text x="38" y="70" font-size="9.5" letter-spacing="1.3" fill="#64748B">UNTRUSTED PLANE · AGENT SIDE</text>
+
+  <rect x="38" y="82" width="248" height="52" fill="#fff" stroke="#B6C2CE" rx="2"/>
+  <text x="50" y="103" font-size="12" fill="#1B2430">MCP host · agent runtime</text>
+  <text x="50" y="119" font-size="9.5" fill="#5A6675">any framework · fully replaceable</text>
+
+  <rect x="38" y="142" width="248" height="52" fill="#fff" stroke="#B6C2CE" rx="2"/>
+  <text x="50" y="163" font-size="12" fill="#1B2430">LLM context window</text>
+  <text x="50" y="179" font-size="9.5" fill="#5A6675">holds {{profile.*}} references only</text>
+
+  <rect x="38" y="202" width="248" height="52" fill="#fff" stroke="#B6C2CE" rx="2"/>
+  <text x="50" y="223" font-size="12" fill="#1B2430">Transcript · logs · traces</text>
+  <text x="50" y="239" font-size="9.5" fill="#5A6675">safe to retain — never held a secret</text>
+
+  <rect x="38" y="262" width="248" height="52" fill="#fff" stroke="#B6C2CE" rx="2"/>
+  <text x="50" y="283" font-size="12" fill="#1B2430">Prompt injection · log leak</text>
+  <text x="50" y="299" font-size="9.5" fill="#5A6675">breaches nothing on the right</text>
+
+  <text x="38" y="336" font-size="9" fill="#7C8B9A">ASSUME FULLY COMPROMISED.</text>
+
+  <!-- ============ PLANE 2 · AUTHORIZATION ============ -->
+  <rect x="370" y="52" width="240" height="300" fill="#FBF6EE" stroke="#B8863A" rx="3"/>
+  <text x="384" y="70" font-size="9.5" letter-spacing="1.3" fill="#8C5A12">AUTHORIZATION PLANE · THE GATE</text>
+
+  <rect x="384" y="82" width="212" height="52" fill="#fff" stroke="#D9BC8A" rx="2"/>
+  <rect x="384" y="82" width="3.5" height="52" fill="#A32E27"/>
+  <text x="398" y="103" font-size="12" fill="#1B2430">agent-auth grant</text>
+  <text x="398" y="119" font-size="9.5" fill="#5A6675">signed by the user · revocable</text>
+
+  <rect x="384" y="142" width="212" height="52" fill="#fff" stroke="#D9BC8A" rx="2"/>
+  <rect x="384" y="142" width="3.5" height="52" fill="#A32E27"/>
+  <text x="398" y="163" font-size="12" fill="#1B2430">functions allowlist</text>
+  <text x="398" y="179" font-size="9.5" fill="#5A6675">explicit · no wildcard by default</text>
+
+  <rect x="384" y="202" width="212" height="52" fill="#fff" stroke="#D9BC8A" rx="2"/>
+  <rect x="384" y="202" width="3.5" height="52" fill="#A32E27"/>
+  <text x="398" y="223" font-size="12" fill="#1B2430">allowedHosts · egress</text>
+  <text x="398" y="239" font-size="9.5" fill="#5A6675">absent = deny all outbound</text>
+
+  <rect x="384" y="262" width="212" height="52" fill="#fff" stroke="#D9BC8A" rx="2"/>
+  <text x="398" y="283" font-size="12" fill="#1B2430">validUntilSecs</text>
+  <text x="398" y="299" font-size="9.5" fill="#5A6675">authority can expire with the call</text>
+
+  <text x="384" y="336" font-size="9" fill="#8C5A12">DENIES WITHOUT CONSULTING ANY MODEL.</text>
+
+  <!-- ============ PLANE 3 · ENCLAVE ============ -->
+  <rect x="680" y="52" width="320" height="300" fill="#F0F7F3" stroke="#3D8F6A" rx="3"/>
+  <text x="694" y="70" font-size="9.5" letter-spacing="1.3" fill="#1F6B4A">ENCLAVE PLANE · INSIDE THE TEE</text>
+
+  <rect x="694" y="82" width="292" height="52" fill="#fff" stroke="#A6D0BC" rx="2"/>
+  <text x="708" y="103" font-size="12" fill="#1B2430">WASM contract</text>
+  <text x="708" y="119" font-size="9.5" fill="#5A6675">Rust → wasm32-wasip2 · 151 ms dispatch</text>
+
+  <rect x="694" y="142" width="292" height="52" fill="#fff" stroke="#A6D0BC" rx="2"/>
+  <rect x="694" y="142" width="3.5" height="52" fill="#A32E27"/>
+  <text x="708" y="163" font-size="12" fill="#1B2430">kv-store · z:&lt;tid&gt;:secrets</text>
+  <text x="708" y="179" font-size="9.5" fill="#5A6675">readers ACL keyed on contract_id</text>
+
+  <rect x="694" y="202" width="292" height="52" fill="#fff" stroke="#A6D0BC" rx="2"/>
+  <text x="708" y="223" font-size="12" fill="#1B2430">http-with-placeholders</text>
+  <text x="708" y="239" font-size="9.5" fill="#5A6675">host resolves {{profile.*}} at dispatch</text>
+
+  <rect x="694" y="262" width="292" height="52" fill="#fff" stroke="#A6D0BC" rx="2"/>
+  <text x="708" y="283" font-size="12" fill="#1B2430">User profile · real PII</text>
+  <text x="708" y="299" font-size="9.5" fill="#5A6675">never enters WASM memory</text>
+
+  <text x="694" y="336" font-size="9" fill="#1F6B4A">THE ONLY PLANE THAT EVER HOLDS A REAL VALUE.</text>
+
+  <!-- ============ PLANE 4 · DESTINATION ============ -->
+  <rect x="1070" y="52" width="236" height="300" fill="#F4F6F8" stroke="#7E8A99" rx="3"/>
+  <text x="1084" y="70" font-size="9.5" letter-spacing="1.3" fill="#5A6675">DESTINATION · UNMODIFIED</text>
+
+  <rect x="1084" y="82" width="208" height="52" fill="#fff" stroke="#B6C2CE" rx="2"/>
+  <text x="1096" y="103" font-size="12" fill="#1B2430">Duffel · Stripe · bank</text>
+  <text x="1096" y="119" font-size="9.5" fill="#5A6675">no T3 integration required</text>
+
+  <rect x="1084" y="142" width="208" height="52" fill="#fff" stroke="#B6C2CE" rx="2"/>
+  <text x="1096" y="163" font-size="12" fill="#1B2430">Sees a normal API call</text>
+  <text x="1096" y="179" font-size="9.5" fill="#5A6675">real values, correct signature</text>
+
+  <rect x="1084" y="202" width="208" height="52" fill="#fff" stroke="#B6C2CE" rx="2"/>
+  <text x="1096" y="223" font-size="12" fill="#1B2430">Response</text>
+  <text x="1096" y="239" font-size="9.5" fill="#5A6675">PII stripped before it returns</text>
+
+  <text x="1084" y="336" font-size="9" fill="#7C8B9A">NEVER LEARNS AN AGENT WAS INVOLVED.</text>
+
+  <!-- ============ FLOW ARROWS ============ -->
+  <text x="335" y="172" text-anchor="middle" font-size="10" fill="#46566B">invoke</text>
+  <text x="335" y="184" text-anchor="middle" font-size="9" fill="#7C8B9A">references only</text>
+  <line x1="304" y1="196" x2="364" y2="196" stroke="#46566B" stroke-width="1.6" marker-end="url(#ar)"/>
+
+  <rect x="617" y="162" width="56" height="26" fill="#FBFCFD"/>
+  <text x="645" y="172" text-anchor="middle" font-size="10" fill="#46566B">admit</text>
+  <text x="645" y="184" text-anchor="middle" font-size="9" fill="#7C8B9A">or halt</text>
+  <line x1="614" y1="196" x2="674" y2="196" stroke="#46566B" stroke-width="1.6" marker-end="url(#ar)"/>
+
+  <text x="1034" y="172" text-anchor="middle" font-size="10" fill="#46566B">dispatch</text>
+  <text x="1034" y="184" text-anchor="middle" font-size="9" fill="#7C8B9A">real values</text>
+  <line x1="1004" y1="196" x2="1064" y2="196" stroke="#46566B" stroke-width="1.6" marker-end="url(#ar)"/>
+
+  <!-- ============ FOUNDATION BAND ============ -->
+  <rect x="24" y="378" width="1282" height="88" fill="#EFF6F8" stroke="#3D7F8C" rx="3"/>
+  <text x="38" y="396" font-size="9.5" letter-spacing="1.3" fill="#12606B">IDENTITY · ATTESTATION · AUDIT — UNDERPINS EVERY PLANE, DEPENDS ON NONE</text>
+
+  <rect x="38" y="406" width="303" height="46" fill="#fff" stroke="#A3CBD5" rx="2"/>
+  <text x="50" y="425" font-size="11.5" fill="#1B2430">did:t3n — agent · tenant · user</text>
+  <text x="50" y="440" font-size="9.5" fill="#5A6675">W3C DIDs · ERC-8004 · A2A cards</text>
+
+  <rect x="357" y="406" width="303" height="46" fill="#fff" stroke="#A3CBD5" rx="2"/>
+  <text x="369" y="425" font-size="11.5" fill="#1B2430">DKG attestation · TDX quote</text>
+  <text x="369" y="440" font-size="9.5" fill="#5A6675">verified against expected_peer_ids + RTMR3</text>
+
+  <rect x="676" y="406" width="303" height="46" fill="#fff" stroke="#A3CBD5" rx="2"/>
+  <text x="688" y="425" font-size="11.5" fill="#1B2430">Ledger row per protected action</text>
+  <text x="688" y="440" font-size="9.5" fill="#5A6675">the compliance artifact</text>
+
+  <rect x="995" y="406" width="311" height="46" fill="#fff" stroke="#A3CBD5" rx="2"/>
+  <text x="1007" y="425" font-size="11.5" fill="#1B2430">Grant revocation</text>
+  <text x="1007" y="440" font-size="9.5" fill="#5A6675">user withdraws · effective immediately</text>
+
+  <!-- ============ LEGEND ============ -->
+  <rect x="24" y="486" width="12" height="12" fill="#F1F4F7" stroke="#94A3B4"/>
+  <text x="42" y="496" font-size="10" fill="#5A6675">Untrusted</text>
+
+  <rect x="122" y="486" width="12" height="12" fill="#FBF6EE" stroke="#B8863A"/>
+  <text x="140" y="496" font-size="10" fill="#5A6675">Authorization</text>
+
+  <rect x="238" y="486" width="12" height="12" fill="#F0F7F3" stroke="#3D8F6A"/>
+  <text x="256" y="496" font-size="10" fill="#5A6675">Enclave (TEE)</text>
+
+  <rect x="358" y="486" width="12" height="12" fill="#F4F6F8" stroke="#7E8A99"/>
+  <text x="376" y="496" font-size="10" fill="#5A6675">Destination</text>
+
+  <rect x="470" y="486" width="12" height="12" fill="#EFF6F8" stroke="#3D7F8C"/>
+  <text x="488" y="496" font-size="10" fill="#5A6675">Identity / audit</text>
+
+  <rect x="602" y="486" width="3.5" height="12" fill="#A32E27"/>
+  <text x="614" y="496" font-size="10" fill="#5A6675">Crimson edge = deny-by-default gate</text>
+
+  <line x1="856" y1="492" x2="884" y2="492" stroke="#A32E27" stroke-width="1.5" stroke-dasharray="5 4"/>
+  <text x="892" y="496" font-size="10" fill="#5A6675">Trust boundary — real values never cross leftward</text>
+
+  <text x="24" y="524" font-size="9.5" fill="#7C8B9A">Measured on testnet, warm session: dispatch 151 ms median · dispatch + egress 437 ms median · session establishment 1,515 ms (pre-warm required).</text>
+</svg>
+</body></html>

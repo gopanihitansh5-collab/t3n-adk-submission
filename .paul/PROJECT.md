@@ -9,11 +9,13 @@ building agents that handle sensitive data. Under an Agent ID: complete the Quic
 the Walkthrough from the T3 docs, evidence the completion, and report every defect found
 along the way.
 
-## Deliverables
+## Deliverables — all three required for the package to be complete
 
-1. **Public GitHub repo** — code, bug log, run transcripts, screenshots
-2. **Written report** — narrative writeup embedding the screenshots and bug table
-3. **Screenshots + bug log** — evidence of completion, and every defect found
+1. **Public GitHub repo** — working code, defect report, run transcripts, screenshots
+2. **Public shareable document** (Google Doc / PDF) — the narrative writeup, with the
+   screenshots embedded and the defect table inline
+3. **Screenshots + defect log** — evidence that each stage actually completed, and every
+   defect found on the way through
 
 ## Quality bar
 
