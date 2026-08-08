@@ -1,183 +1,246 @@
-# Terminal 3 ADK — Completed Quickstart & Walkthrough
+# Building on Terminal 3
 
-**Submitted by:** Hitansh Gopani — AI/ML Engineer
-**Contact:** gopanihitansh5@gmail.com · [@Hitansh54](https://x.com/Hitansh54)
-**Date:** 8 August 2026
-**Repo:** https://github.com/gopanihitansh5-collab/t3n-adk-submission
-**Agent / Tenant DID:** `did:t3n:6ec29eeb5cb122d05e006391d2c954b2390032ed`
+## Two contracts, seventeen defects, and one exfiltration path I found in my own code
 
----
+**Hitansh Gopani** — AI/ML Engineer
+gopanihitansh5@gmail.com · [@Hitansh54](https://x.com/Hitansh54)
+8 August 2026
 
-## Summary
+**Repository:** https://github.com/gopanihitansh5-collab/t3n-adk-submission
+**Agent DID:** `did:t3n:6ec29eeb5cb122d05e006391d2c954b2390032ed`
+**Contracts:** `511` (flight, vendored) · `517` (voicepay, mine)
+**Stack:** `@terminal3/t3n-sdk` 4.30.0 · Node 24.14.1 · Rust 1.97.1 · `wasm32-wasip2`
 
-I completed the Quickstart and the full five-stage Walkthrough (write → build → register →
-invoke → test) under my T3N Agent ID, and filed **16 bugs**.
-
-The headline result: a Rust TEE contract compiled to a WASM component, registered as
-`contract_id 511`, granted to an agent identity, and invoked — with the enclave making a
-real outbound HTTPS call to the Duffel API through the host egress allowlist.
-
-The headline problem: **the published Quickstart code does not run**, and the only way to
-make it run is to disable the remote-attestation verification that Terminal 3 exists to
-provide.
-
-| Stage | Outcome |
-|---|---|
-| Claim API key + DID | ✅ |
-| Quickstart — authenticate | ✅ (after fixing an undocumented required field) |
-| Quickstart — read credit balance | ❌ **broken on all four published surfaces** |
-| Walkthrough — write contract | ✅ |
-| Walkthrough — build to `wasm32-wasip2` | ✅ 194 KB component, 34 s |
-| Walkthrough — test | ✅ 7/7 (documented command fails; workaround needed) |
-| Walkthrough — register | ✅ `contract_id 511` |
-| Walkthrough — invoke | ✅ full TEE round trip to a live external API |
-
-### Evidence
-
-Captured live from Terminal 3's own published pages — these are the source documents, not
-my reproduction of them.
-
-| Screenshot | Shows |
-|---|---|
-| `01-bug002-readme-claims-full-PII.jpg` | `z-tenant-flight` README: "`book-offer` — POST to Duffel `/air/orders` **with full passenger PII**", and the header reading **v0.3.0** against a `Cargo.toml` of `0.4.1` (BUG-002, BUG-007) |
-| `02-bug002-bug005-privacy-guarantee-and-missing-capability.jpg` | The README's "Privacy guarantee: passenger PII … **is passed in by the agent**", directly above a `host_capabilities` manifest that omits `http_with_placeholders` (BUG-002, BUG-005) |
-| `03-bug002-wit-says-carries-NO-PII.jpg` | `wit/world.wit` line 49: "**Carries NO passenger PII**: the contract templates `{{profile.<field>}}` markers … the host resolves them" — the exact contradiction (BUG-002) |
-| `04-bug011-quickstart-snippet-has-no-trustAnchor.jpg` | The Quickstart's published `new T3nClient({ wasmComponent, handlers })` — **no `trustAnchor`**, the omission that makes the tutorial throw. Also visible: the inline comment "the SDK defaults to production", which is false (BUG-011, BUG-004) |
-
-Terminal transcripts for every command are reproduced verbatim in
-[`docs/RUN-LOG.md`](RUN-LOG.md).
+> This is the markdown mirror of `T3N-ADK-Report-Hitansh-Gopani.pdf`. Paste it into Google
+> Docs (Tools → Preferences → Enable Markdown) and drop the images from `screenshots/` at
+> the marked points.
 
 ---
 
-## The walkthrough, end to end
+## The short version
 
-After registration I authorized my own DID as the calling agent, scoped to two functions
-and a single egress host:
+I completed the documented walkthrough, then wrote my own contract to test whether the
+privacy guarantee actually holds under adversarial input.
 
-```typescript
-await t3n.agentAuthUpdate({
-  agents: [{
-    agentDid: tenantDid,
-    scripts: [{
-      scriptName: "z:6ec29eeb…32ed:flight",
-      versionReq: null,
-      functions: ["search-offers", "book-offer"],
-      allowedHosts: ["api.duffel.com"],
-    }],
-  }],
-  discoverDids: [tenantDid],
-});
-```
+The core mechanism works, and it is fast enough for a phone call. I registered a contract
+that emits `{{profile.*}}` markers and measured that **zero of them reached the destination
+unresolved** — the host substituted every one inside the enclave. Egress outside the signed
+grant is refused. Dispatch costs 151 ms.
 
-Invoking `search-offers` then produced this, which is worth reading closely:
-
-```
-RpcError: contract error: Duffel offer-request failed: HTTP 401 —
-{"errors":[{"title":"Access token not found","type":"authentication_error",
-"code":"access_token_not_found"}],"meta":{"request_id":"GMnF1mMwiWcBR68BZJ2I","status":401}}
-```
-
-That is a **success**, not a failure. The 401 comes from Duffel, not from Terminal 3 — it
-is rejecting my placeholder API token. To produce it, the platform had to: dispatch the
-contract into the enclave, instantiate the WASM component, resolve its host capabilities,
-read a secret from an ACL-gated KV map, and make a real outbound HTTPS request through the
-egress allowlist. Every T3 mechanism in the chain works. Only the third-party credential
-was fake.
+What does not work is the path a developer walks on day one: the published Quickstart throws
+on its first call, the credit balance is unreachable through all four published surfaces,
+and a *pinned* contract version silently executes whatever was registered most recently —
+which I proved rather than inferred.
 
 ---
 
-## Bugs
+## What completed
 
-Full detail with repros in `docs/BUGS.md`. Ordered by severity.
+*[Insert Fig. 1 — `docs/figures/fig1-architecture.png`]*
 
-| # | Severity | Summary |
+**The documented walkthrough, with their reference contract**
+
+| Stage | Result | Detail |
 |---|---|---|
-| 002 | **Critical** | Sample contract's README and WIT document **opposite** PII security models |
-| 011 | **Critical** | Quickstart code does not run — `trustAnchor` required but undocumented; the only workaround disables attestation |
-| 013 | **High** | Credit balance broken on all 4 surfaces — SDK and CLI both send a sealed blob where the node expects a struct |
-| 012 | **High** | `getBalance()` throws inside the SDK's own decrypt path |
-| 010 | **High** | Invocation needs an undocumented KV map whose ACL is keyed on `contract_id` |
-| 005 | **High** | Sample's capability manifest omits `http_with_placeholders`, which its WIT imports |
-| 003 | **High** | Registering a new version silently re-routes *pinned* older versions |
-| 014 | **High** | SDK ships a **critical** Zip Slip advisory (`decompress`) in its dependency tree |
+| Claim API key + Agent DID | ✅ | resolved on testnet |
+| Quickstart — authenticate | ✅ | after supplying an undocumented required field |
+| Quickstart — credit balance | ❌ | broken on all four published surfaces |
+| Walkthrough — build | ✅ | 194 KB component, 34 s |
+| Walkthrough — test | ✅ | 7/7, documented command fails |
+| Walkthrough — register | ✅ | `contract_id 511` |
+| Walkthrough — invoke | ✅ | full TEE round trip to a live API |
+
+**My own contract, built to test the guarantee under attack**
+
+| Stage | Result | Detail |
+|---|---|---|
+| `ppc-voice-pay` — written | ✅ | Rust, 25 tests, plain `cargo test` |
+| `ppc-voice-pay` — deployed | ✅ | `contract_id 517` |
+| Privacy property — measured | ✅ | 2 markers sent, 0 unresolved |
+| Adversarial verification | ✅ 5/5 | injection, PII, ceiling, egress all refused |
+| Version pinning | ❌ | pinned version ran latest — proven |
+
+*[Insert screenshots 01, 03, 04, 05, 06 from `screenshots/terminal/`]*
+
+---
+
+## The contract proves its own security property
+
+Anyone can assert that the host resolved the markers. Rather than assert it, the contract
+counts the `{{profile.*}}` markers it emits, then inspects what the destination *actually
+received*. Zero survivors means every one was substituted inside the enclave.
+
+```
+OK   contracts.register(voicepay@0.2.0) → contract_id 517
+OK   authorize-payment
+     {"authorized":true,"markers_sent":2,"markers_unresolved":0,
+      "fields":["first_name","last_name"],"provider_status":200}
+
+  markers emitted by contract : 2
+  markers reaching destination: 0
+  PASS — all 2 markers were resolved host-side inside the enclave.
+         The contract never held a value; the agent never saw one.
+```
+
+The proof is returned to the agent. The resolved values are **not** — handing those back
+would deliver the PII straight to the model and defeat the mechanism entirely. `fields`
+names which profile fields were requested; it never carries what they contained. The
+property held on all eight benchmark rounds.
+
+*[Insert screenshot 09-voicepay-proof.png]*
+
+---
+
+## The attack I found in my own contract
+
+Agent-supplied strings end up inside the body the contract emits. Set `idempotency_key` to
+`{{profile.ssn}}` and the host resolves it at dispatch exactly as it resolves the contract's
+own markers — sending that value to the destination.
+
+The contract never sees it. The marker count still comes back clean, because the injected
+marker *resolves* and therefore leaves no trace. The audit row looks ordinary. If the
+grant's `allowedHosts` is at all permissive, this is an exfiltration primitive.
+
+**Placeholder resolution is a capability, and any caller-controlled string that reaches the
+template is a way to invoke it.** The only safe rule is that markers originate from contract
+code and nowhere else. v0.2.0 refuses caller markers at any depth. Any contract using
+`http-with-placeholders` needs this guard, and the documentation never mentions it.
+
+---
+
+## Adversarial verification against the live network
+
+*[Insert screenshot 12-voicepay-adversarial.png]*
+
+| | Check | Result |
+|---|---|---|
+| A | Happy path | ✅ authorized, markers 2/0, status 200 |
+| B | Marker injected into `idempotency_key` | ✅ refused |
+| C | Inline `card_number` in the payload | ✅ refused |
+| D | Amount above the per-call ceiling | ✅ refused |
+| E | Egress to a host outside the grant | ✅ **refused host-side** |
+| F | Pinned `0.1.1` with an injected marker | ⚠️ **BUG-003 confirmed** |
+
+**E is Terminal 3 working.** The contract asked to reach `example.com`; the host refused
+before anything left the enclave, because that host is not in the signed grant.
+
+**F is Terminal 3 failing.**
+
+---
+
+## Version pinning does not pin
+
+I originally filed this from Terminal 3's own documentation, which warns that registering a
+new version can re-route pinned ones. Quoting a vendor's warning back at them is weak
+evidence, so I built a discriminator.
+
+Two registered versions of my contract differ in exactly one observable way: `0.1.1`
+(id 516) has no marker-injection guard and accepts an injected marker; `0.2.0` (id 517)
+refuses it. So invoking with `script_version` pinned to `0.1.1` and an injected marker
+identifies which build actually ran.
+
+```
+// pinned to the OLD version, which should accept this input
+script_version: "0.1.1",
+input: { idempotency_key: "{{profile.first_name}}", ... }
+
+RPC Error: contract error: authorize-payment: bad input:
+  placeholder markers are not accepted from callers.
+   ^ that message exists ONLY in 0.2.0
+```
+
+The pin was ignored and the newest build executed. No warning, no error, nothing in the
+response indicating a different version answered. A tenant who pins a reviewed, audited
+version of a payment contract will silently begin running whatever was registered most
+recently — and pinning is precisely the mechanism people reach for to prevent that.
+
+---
+
+## The latency budget
+
+A conversational turn degrades past 500–800 ms and breaks past ~1.5 s. I measured rather
+than assumed — and the first measurement was of the wrong path.
+
+| Path | Median | p95 | Verdict |
+|---|--:|--:|---|
+| TEE dispatch + WASM instantiation | 151 ms | — | sits anywhere |
+| Dispatch + plain HTTPS, no PII | 437 ms | — | comfortable |
+| **Dispatch + placeholder resolution** | **504 ms** | **798 ms** | degrading band |
+| Session establishment | 1,515 ms | — | off the critical path |
+
+My first benchmark timed `search-offers`, which uses plain `http` and carries no PII —
+437 ms, comfortably inside a turn. But the payment path resolves markers, and that is extra
+work inside the enclave. Measured properly on `authorize-payment` over eight rounds:
+**504 ms median, 798 ms p95.** Marker resolution costs roughly **67 ms**.
+
+That moves the verdict from "fits comfortably" to "lands in the degrading band." Still
+shippable, but the agent needs to say *"one moment, authorizing that"* rather than going
+silent, and the p95 is the number to design against.
+
+The useful finding underneath: **the enclave is not the bottleneck.** Dispatch plus
+instantiation is 151 ms; the rest is network egress you would pay anyway. Confidential
+computing is not what costs you the conversation. Session establishment at ~1.5 s is the
+real constraint — the agent must hold a session open while the phone is still ringing.
+
+*[Insert screenshot 10-voicepay-latency.png]*
+
+---
+
+## Seventeen defects
+
+Full repro, expected-versus-actual and workaround for each in `docs/BUGS.md`.
+
+| # | Severity | Defect |
+|---|---|---|
+| 002 | Critical | Reference contract's README and WIT document **opposite** PII security models |
+| 011 | Critical | Quickstart code doesn't run; the only available fix disables attestation |
+| 003 | High | Pinned contract version silently runs latest — **proven, not quoted** |
+| 013 | High | Credit balance unreachable from all 4 published surfaces |
+| 017 | High | Profile write schema and placeholder resolver disagree on field names |
+| 010 | High | Invocation needs an undocumented KV map with a `contract_id`-keyed ACL |
+| 005 | High | Sample's capability manifest omits a capability its own WIT imports |
+| 012 | High | `getBalance()` throws inside the SDK's own decrypt path |
+| 014 | High | SDK ships a critical Zip Slip advisory in its dependency tree |
 | 006 | Medium | `.cargo/config.toml` target pin breaks the documented `cargo test` |
-| 009 | Medium | API key unrecoverable, no rotation path documented |
-| 015 | Medium | Shipped SDK is obfuscated with no source maps — 1.2 MB stack traces |
+| 015 | Medium | Shipped SDK is obfuscated, no source maps — 1.2 MB stack traces |
 | 016 | Medium | `tenant.claim()` returns a bare `Internal error` |
-| 001 | Low | `sandbox` / `testnet` / `production` naming inconsistent across surfaces |
-| 004 | Low | Docs state the wrong CLI default and omit a supported environment |
-| 007 | Low | Sample repo version drift: README 0.3.0, Cargo.toml 0.4.1, WIT 0.4.0 |
+| 009 | Medium | API key unrecoverable, no documented rotation path |
+| 004 | Low | Docs state the wrong default environment for both SDK and CLI |
+| 007 | Low | Sample repo carries three different version numbers |
+| 001 | Low | `sandbox` / `testnet` / `production` naming inconsistent |
 | 008 | Low | "No Rust or WASM knowledge required" contradicted by the next page |
 
-**Two bugs were corrected downward after verification.** BUG-001 was filed as High on the
-assumption `sandbox` and `testnet` were different environments; checking the SDK at runtime
-showed `NODE_URLS.sandbox === NODE_URLS.testnet`, so nobody is actually broken. BUG-004 was
-filed claiming the CLI dangerously defaults to production; running `t3n --help` showed it
-defaults to testnet and the *docs* are wrong. Both are recorded with their original
-reasoning intact rather than quietly edited — a bug report is only useful if its severities
-can be trusted.
+### On severity discipline
 
-### The two that matter most
+Two of these were filed wrong and corrected downward after verification. BUG-001 was filed
+Critical on the assumption `sandbox` and `testnet` were distinct environments; the SDK
+showed they resolve to one URL. BUG-004 claimed the CLI dangerously defaults to production;
+running it showed the opposite.
 
-**BUG-011 — the Quickstart is unrunnable, and the fix is to turn off the security.**
-`T3nClientConfig.trustAnchor` is a required field; the SDK's own comment says it is
-required "precisely so no caller can omit it by accident — bypassing verification must be
-a visible, grep-able choice." The published Quickstart omits it. A real anchor needs
-`expected_peer_ids` and `rtmr3_allowlist`, and **those values appear nowhere** — not in the
-docs, not in the SDK reference, not as an exported constant. So every developer completing
-your Quickstart will write `unsafe_trust_server: true` and unknowingly disable DKG
-attestation. Publishing testnet anchor values would close this.
+Both corrections are recorded with the original reasoning intact rather than quietly edited.
+A severity rating is only worth reading if the ones that moved are shown moving — and
+BUG-003 moved the other way, from quoted caveat to reproducible defect.
 
-**BUG-002 — the reference contract's README contradicts its own interface.** The README
-says `book-offer` is called "with full passenger PII … passed in by the agent." The WIT
-says it "carries **NO** passenger PII" and uses host-resolved `{{profile.*}}` placeholders.
-The crate's own test suite settles it — `book_offer_rejects_inline_pii_fields` passes — so
-the WIT is right and the README documents a model the code deliberately refuses. Since this
-is the flagship privacy guarantee, the README is teaching newcomers the one pattern the
-product exists to prevent.
+*[Insert screenshots 01–04 from `screenshots/` — live captures of the defects on Terminal 3's own pages]*
 
 ---
 
-## Beyond the first contract: voice-agent payment authorization
+## What I would fix first
 
-The reference contract protects PII in flight booking. The same primitive solves a problem
-I keep hitting in my own work building voice agents.
+1. **Publish testnet trust-anchor values.** One paragraph removes the worst defect here and stops every new developer from disabling attestation as their opening move.
+2. **Fix version pinning.** A pin that silently resolves to latest is worse than no pin, because it is trusted.
+3. **Document marker injection.** Every contract using `http-with-placeholders` needs a guard against caller-supplied markers. Right now nothing says so, and the reference contract does not have one.
+4. **Fix `token.get-usage`.** The headline offer is 20,000 credits that cannot be observed through any published surface.
+5. **Add the KV map and ACL step to the invoke page.** Three commands, currently zero words.
+6. **Ship source maps.** Isolating these defects meant reading type declarations, because the implementation is unreadable.
 
-When a caller reads a card number to a voice agent, that number enters the speech-to-text
-transcript, the LLM context window, and every log and trace downstream. Redaction after the
-fact does not help — the data was already in the prompt. This is the single biggest blocker
-to voice agents touching payments.
-
-`http-with-placeholders` inverts it. The agent never receives the card at all:
-
-```
-caller speaks  →  STT  →  agent reasons over "{{profile.card_token}}"
-                              ↓
-                        TEE contract templates the Stripe request
-                              ↓
-                        host resolves {{profile.*}} at dispatch
-                              ↓
-                        Stripe sees real values; agent never did
-```
-
-A contract exporting `authorize-payment(generic-input)` would template
-`{{profile.card_token}}` and `{{profile.dob}}` into a Stripe intent, with the caller's
-`agent-auth` grant bounding both the amount and the egress host. The LLM context contains
-only opaque references, so the transcript is safe to log, and the audit row on the ledger
-is the compliance artifact.
-
-This maps directly onto Terminal 3's own
-[`adk-circle-call-centre-agent-demo`](https://github.com/Terminal-3/adk-circle-call-centre-agent-demo),
-and it is what I intend to build next with the remaining credits. I will follow up with the
-contract and a recorded demo.
+None of these are architectural. The hard part — confidential execution with host-resolved
+secrets, an auditable grant model, and egress bounded by a signed capability — already
+works, and I measured it working fast enough for a phone call. The gap is entirely in the
+path a new developer walks on day one.
 
 ---
 
-## What would have made this faster
-
-1. **Publish testnet trust-anchor values.** One paragraph removes the worst bug here.
-2. **Fix `token.get-usage`.** Nobody can verify they received the credits the offer is built on.
-3. **Add the KV-map + ACL step to the invoke page.** It is three commands and currently zero words.
-4. **Ship source maps.** Debugging obfuscated single-line bundles is what made these bugs slow to isolate.
-
-Happy to go deeper on any of these — `devrel@terminal3.io` has my details.
+**Hitansh Gopani** · gopanihitansh5@gmail.com · [@Hitansh54](https://x.com/Hitansh54)
+Source, defect report with repros, deployment record, verbatim transcripts and the
+measurement harness: https://github.com/gopanihitansh5-collab/t3n-adk-submission

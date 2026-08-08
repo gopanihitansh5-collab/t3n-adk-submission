@@ -15,7 +15,7 @@
 | T4 register contract | ✅ done — contract_id 511 |
 | T5 agent ID | ✅ done — `whoami` resolves the DID on testnet |
 | T6 authorize + invoke | ✅ done — full TEE round trip, see below |
-| T7 consolidate bugs | ✅ 16 bugs filed, 2 corrected after verification |
+| T7 consolidate bugs | ✅ 17 defects filed, 2 corrected down, BUG-003 proven |
 | T8 README + submission doc | ✅ done — README, SUBMISSION.md, RUN-LOG.md, 4 screenshots |
 | T9 publish | ✅ repo public; ⬜ Google Doc + submit form still on Hitansh |
 
