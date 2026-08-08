@@ -427,6 +427,58 @@ gates at exactly the regulated enterprises this product targets.
 
 ---
 
+## BUG-017 — The profile write schema and the placeholder resolver disagree on field names · **High** · [runtime]
+
+Found while building our own contract against `http-with-placeholders` — the only defect
+here that required writing a second contract to surface.
+
+**Repro**
+
+1. Write a profile through the documented API:
+
+```typescript
+await t3n.submitUserInput({
+  profile: {
+    first_name: "Ada", last_name: "Lovelace",
+    email_address: "ada@example.com", phone_number: "+442071234567",
+  },
+});
+// → { txHash: "tx:107:100057", userFound: true }   ← committed, no error
+```
+
+2. Emit `{{profile.email_address}}` from a contract via `http-with-placeholders`.
+
+**Actual**
+
+```
+RpcError: contract error: profile field 'email_address' is not set for the calling user
+  — nothing to resolve  [82385aaa-ff35-4f21-9bd0-9507e05af8c1]
+```
+
+**The contradiction.** `email_address` and `phone_number` are declared fields on the SDK's
+own `UserInputProfile` interface, `submitUserInput` accepted them, and the write committed
+with a transaction hash. The resolver then reports the field is not set.
+
+`first_name` and `last_name`, written in the same call, resolve correctly. So the write
+succeeded — the two subsystems simply do not share a namespace.
+
+**Probable cause.** The reference contract templates email as
+`{{profile.verified_contacts.email.value}}`, not `{{profile.email_address}}`. Contact
+fields appear to live under a `verified_contacts` subtree populated by the OTP flow, while
+`submitUserInput` writes to a flat profile. Nothing documents this, and the two field sets
+overlap by name, which is what makes it a trap rather than a gap.
+
+**Impact.** A developer following the documented profile API will write four fields, see a
+success transaction, and then have half their placeholders fail at dispatch — inside the
+enclave, where diagnosis is hardest. The error message compounds it: "is not set" is
+false. It *is* set; it is not set *where the resolver looks*.
+
+**Fix.** Either resolve flat profile fields as written, or reject unresolvable field names
+at write time, or document that contact placeholders require OTP verification first and
+use a different path.
+
+---
+
 ## BUG-016 — `tenant.claim()` returns an opaque `Internal error` · **Medium** · [runtime]
 
 **Repro:** `await tenantClient.tenant.claim()` on an already-active testnet tenant.
