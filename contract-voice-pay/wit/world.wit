@@ -1,0 +1,49 @@
+/// ppc-voice-pay — payment authorization for voice agents.
+///
+/// The problem this exists to solve: when a caller reads a card number to a
+/// voice agent, that number enters the speech-to-text transcript, the model's
+/// context window, and every log and trace downstream. Redaction after the
+/// fact does not help — the value was already in the prompt.
+///
+/// This contract inverts it. The agent passes NO cardholder data. The contract
+/// templates `{{profile.<field>}}` markers into the outbound payment request
+/// and the host resolves them from the calling user's profile at dispatch,
+/// inside the enclave. Cardholder data never enters WASM memory and never
+/// enters the agent's context.
+///
+/// Imports:
+///   tenant-context         — tenant DID, for namespacing
+///   logging                — enclave-side diagnostics (never leaves the TEE)
+///   http-with-placeholders — the whole point: host-side marker resolution
+package z:voice-pay@0.1.0;
+
+world voice-pay {
+    import host:tenant/tenant-context@1.0.0;
+    import host:interfaces/logging@2.1.0;
+    import host:interfaces/http-with-placeholders@2.1.0;
+
+    export contracts;
+}
+
+interface contracts {
+    /// Standard 3-field envelope used by all contracts callable from the node.
+    record generic-input {
+        input:        option<list<u8>>,
+        user-profile: option<list<u8>>,
+        context:      option<list<u8>>,
+    }
+
+    /// Authorize a payment on behalf of the calling user.
+    ///
+    /// Input (JSON): { amount_cents, currency, idempotency_key, endpoint }
+    ///   — carries NO cardholder data. Any input containing PII-shaped keys
+    ///     is rejected outright, so a confused agent cannot smuggle a card
+    ///     number in through this door.
+    ///
+    /// Output (JSON): { authorized, markers_sent, markers_unresolved,
+    ///                  fields, provider_status }
+    ///   — a PROOF of resolution, not the resolved values. Returning the
+    ///     resolved data would hand the PII straight back to the agent and
+    ///     defeat the entire mechanism.
+    authorize-payment: func(req: generic-input) -> result<list<u8>, string>;
+}

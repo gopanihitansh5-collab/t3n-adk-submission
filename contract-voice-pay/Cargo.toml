@@ -1,0 +1,27 @@
+[package]
+name = "ppc-voice-pay"
+version = "0.1.1"
+edition = "2021"
+description = "Payment authorization for voice agents — cardholder data resolved host-side inside the TEE, never in the agent's context"
+license = "MIT"
+publish = false
+
+[lib]
+crate-type = ["cdylib", "lib"]
+
+[dependencies]
+wit-bindgen = { version = "0.49", default-features = false, features = ["macros", "realloc"] }
+serde = { version = "1.0", default-features = false, features = ["derive", "alloc"] }
+serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
+
+[profile.release]
+opt-level = "s"
+lto = true
+codegen-units = 1
+strip = true
+
+# NOTE: deliberately NO .cargo/config.toml pinning `build.target`.
+# The reference contract pins wasm32-wasip2 there, which breaks the documented
+# `cargo test` (it builds the test harness for wasm and then cannot execute it
+# natively). See BUG-006. Here, `cargo test` works as documented and the wasm
+# build is an explicit `--target`.
