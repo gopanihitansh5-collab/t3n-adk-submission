@@ -1,0 +1,8 @@
+node_modules/
+target/
+.env
+.env.*
+*.key
+apikeys.txt
+new.txt
+*.wasm
