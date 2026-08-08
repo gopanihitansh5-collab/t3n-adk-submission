@@ -10,14 +10,29 @@
 | PROJECT.md / PLAN.md / BUGS.md written | ✅ done |
 | T0 repo skeleton | ⏳ next |
 | T1 quickstart auth | ⬜ |
-| T2 build contract | ⬜ |
-| T3 native tests | ⬜ |
-| T4 register contract | ⬜ |
-| T5 agent ID | ⬜ |
-| T6 authorize + invoke | ⬜ |
-| T7 consolidate bugs | ⬜ |
-| T8 README + submission doc | ⬜ |
+| T2 build contract | ✅ done — 194K component, built in 34s |
+| T3 native tests | ✅ done — BUG-006 confirmed; 7/7 pass with workaround |
+| T4 register contract | ✅ done — contract_id 511 |
+| T5 agent ID | ✅ done — `whoami` resolves the DID on testnet |
+| T6 authorize + invoke | ✅ done — full TEE round trip, see below |
+| T7 consolidate bugs | ✅ 16 bugs filed, 2 corrected after verification |
+| T8 README + submission doc | ⏳ in progress |
 | T9 publish + SUBMIT | ⬜ |
+
+## Walkthrough completed end-to-end ✅
+
+`search-offers` was dispatched into the TEE and reached the real Duffel API:
+
+1. `agentAuthUpdate` — grant accepted (functions + `allowedHosts: ["api.duffel.com"]`)
+2. TEE dispatch — `TenantContract(did:t3n:…/511)` instantiated
+3. KV read — `duffel_api_key` read from `z:<tid>:secrets` after the ACL was set to
+   `readers: { only: [511] }`
+4. Egress — real outbound HTTPS to `api.duffel.com`
+5. Duffel replied `HTTP 401 access_token_not_found` (request_id `GMnF1mMwiWcBR68BZJ2I`)
+
+The 401 is our placeholder credential, not a T3 failure. Every Terminal 3 mechanism —
+registration, agent auth, TEE dispatch, KV ACL, egress allowlist, HTTP — is proven working.
+Supplying a real Duffel test token is the only thing between this and live offers.
 | T10 bonus voice-pay contract | ⬜ post-submission |
 
 ## Key facts (do not re-derive)
@@ -28,7 +43,14 @@
   `$T3N_API_KEY`. Both files live outside the repo.
 - **Credits:** 20,000 T3N (≈25 agents / ~5,000 protected actions) — unverified until T1 runs
 - **Claim/community link:** https://go.terminal3.io/adk-community
-- **Contract tail:** `flight` · **version:** `0.4.1` · **contract_id:** _(pending T4)_
+- **Contract tail:** `flight` · **version:** `0.4.1` · **contract_id: `511`** ✅
+- **Canonical name:** `z:6ec29eeb5cb122d05e006391d2c954b2390032ed:flight`
+- **WASM:** `contract/target/wasm32-wasip2/release/z_tenant_flight.wasm` — 197,904 bytes
+  (quota `max_wasm_bytes` = 1,048,576, so ~19% used)
+- **Tenant standing:** `label: testnet-dev`, `status: active`, `max_contracts: 10`
+- **Also present under this tenant:** `z:…:flight-walkthrough` — pre-existing, not
+  registered by this run. Origin unknown; do not assume it is ours.
+- **Derived eth address:** `0xe85e19061e3e7b38073d9a119ca3c32f45c0066d`
 - **Agent DID:** _(pending T5)_
 - Toolchain verified present: Rust 1.97.1 + `wasm32-wasip2`, Node 24.14.1, gh 2.96.0
 
