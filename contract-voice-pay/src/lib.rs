@@ -46,7 +46,7 @@ extern crate alloc;
 
 use alloc::{format, string::String, vec::Vec};
 
-pub const CONTRACT_VERSION: &str = "0.1.1";
+pub const CONTRACT_VERSION: &str = "0.2.0";
 
 /// The marker prefix the host substitutes on. Counting occurrences of this in
 /// what the destination received is what turns "we believe it resolved" into
@@ -101,10 +101,25 @@ const FORBIDDEN_KEYS: &[&str] = &[
     "phone", "address", "passport_number", "account_number", "iban", "sort_code",
 ];
 
-/// Reject any payload carrying PII-shaped keys, at any depth.
+/// Reject any payload carrying PII-shaped keys, **or a placeholder marker**, at
+/// any depth.
 ///
-/// The point is not that a well-behaved agent would send them. The point is
-/// that a misbehaving one cannot.
+/// Two separate attacks are closed here.
+///
+/// **1. Inline PII.** A well-behaved agent would not send a card number as an
+/// argument. A prompt-injected one might. This door stays shut.
+///
+/// **2. Marker injection — the more interesting one.** Agent-supplied strings
+/// end up inside the body this contract emits. If an attacker sets
+/// `idempotency_key` to `{{profile.ssn}}`, the host resolves it at dispatch
+/// exactly as it resolves ours, and the value is exfiltrated to the
+/// destination. The contract would never see it, the audit row would look
+/// ordinary, and the marker count would still come back clean — the injected
+/// marker resolves, so it leaves no trace in the response.
+///
+/// Placeholder resolution is a capability, and any caller-controlled string
+/// that reaches the template is a way to invoke it. The only safe rule is that
+/// markers may originate from contract code and nowhere else.
 pub fn reject_inline_pii(raw: &[u8]) -> Result<(), String> {
     let v: serde_json::Value = serde_json::from_slice(raw)
         .map_err(|e| format!("authorize-payment: bad input: {e}"))?;
@@ -126,11 +141,26 @@ pub fn reject_inline_pii(raw: &[u8]) -> Result<(), String> {
                 Ok(())
             }
             serde_json::Value::Array(items) => items.iter().try_for_each(walk),
+            serde_json::Value::String(s) => {
+                if s.contains("{{") || s.contains("}}") {
+                    return Err(String::from(
+                        "authorize-payment: bad input: placeholder markers are not accepted \
+                         from callers. Marker injection would let a caller resolve arbitrary \
+                         profile fields and exfiltrate them to the destination.",
+                    ));
+                }
+                Ok(())
+            }
             _ => Ok(()),
         }
     }
     walk(&v)
 }
+
+/// Largest authorization this contract will attempt, in minor units.
+/// A voice turn should not be able to move £1,000,000 because a model
+/// hallucinated a zero. Callers needing more should use a reviewed path.
+pub const MAX_AMOUNT_MINOR: u64 = 5_000_00;
 
 /// Build the outbound payment body, templating profile markers.
 ///
@@ -182,8 +212,37 @@ pub fn authorize_payment(input: &[u8]) -> Result<Vec<u8>, String> {
     if req.amount_cents == 0 {
         return Err(String::from("authorize-payment: amount_cents must be > 0"));
     }
-    if req.currency.len() != 3 {
-        return Err(String::from("authorize-payment: currency must be ISO-4217"));
+    if req.amount_cents > MAX_AMOUNT_MINOR {
+        return Err(format!(
+            "authorize-payment: amount {} exceeds the per-call ceiling of {}. A single \
+             conversational turn is not an approval path for arbitrary sums.",
+            req.amount_cents, MAX_AMOUNT_MINOR
+        ));
+    }
+    if req.currency.len() != 3 || !req.currency.bytes().all(|b| b.is_ascii_uppercase()) {
+        return Err(String::from(
+            "authorize-payment: currency must be a 3-letter uppercase ISO-4217 code",
+        ));
+    }
+    if req.idempotency_key.trim().is_empty() {
+        return Err(String::from(
+            "authorize-payment: idempotency_key is required — without it a retried turn \
+             double-charges the caller",
+        ));
+    }
+    if req.idempotency_key.len() > 128 {
+        return Err(String::from(
+            "authorize-payment: idempotency_key must be 128 characters or fewer",
+        ));
+    }
+    // Defence in depth. The grant's allowedHosts is the real control and is
+    // enforced host-side, but plaintext egress should never be reachable from
+    // here regardless of how the grant is configured.
+    if !req.endpoint.starts_with("https://") {
+        return Err(String::from(
+            "authorize-payment: endpoint must be https — refusing to send an authorization \
+             over plaintext",
+        ));
     }
 
     #[cfg(target_arch = "wasm32")]
@@ -391,5 +450,123 @@ mod tests {
     fn host_io_is_unavailable_natively() {
         let raw = serde_json::to_vec(&valid()).unwrap();
         assert!(authorize_payment(&raw).unwrap_err().contains("wasm32"));
+    }
+
+    // ---- marker injection: the attack this contract exists to refuse ----
+
+    #[test]
+    fn rejects_a_marker_injected_into_the_idempotency_key() {
+        let mut v = valid();
+        v["idempotency_key"] = serde_json::json!("{{profile.ssn}}");
+        let raw = serde_json::to_vec(&v).unwrap();
+        let err = reject_inline_pii(&raw).unwrap_err();
+        assert!(err.contains("Marker injection"), "got: {err}");
+    }
+
+    #[test]
+    fn rejects_a_marker_injected_anywhere_at_any_depth() {
+        let mut v = valid();
+        v["metadata"] = serde_json::json!({ "note": ["harmless", "{{profile.first_name}}"] });
+        let raw = serde_json::to_vec(&v).unwrap();
+        assert!(reject_inline_pii(&raw).is_err());
+    }
+
+    #[test]
+    fn rejects_a_lone_closing_brace_pair() {
+        // Half a marker is still an attempt to build one.
+        let mut v = valid();
+        v["currency"] = serde_json::json!("GB}}");
+        let raw = serde_json::to_vec(&v).unwrap();
+        assert!(reject_inline_pii(&raw).is_err());
+    }
+
+    // ---- amount and idempotency edges ----
+
+    #[test]
+    fn rejects_an_amount_over_the_ceiling() {
+        let mut v = valid();
+        v["amount_cents"] = serde_json::json!(MAX_AMOUNT_MINOR + 1);
+        let raw = serde_json::to_vec(&v).unwrap();
+        assert!(authorize_payment(&raw).unwrap_err().contains("exceeds the per-call ceiling"));
+    }
+
+    #[test]
+    fn accepts_an_amount_exactly_at_the_ceiling() {
+        let mut v = valid();
+        v["amount_cents"] = serde_json::json!(MAX_AMOUNT_MINOR);
+        let raw = serde_json::to_vec(&v).unwrap();
+        // Passes validation, then stops at the native host-I/O boundary.
+        assert!(authorize_payment(&raw).unwrap_err().contains("wasm32"));
+    }
+
+    #[test]
+    fn rejects_an_empty_idempotency_key() {
+        let mut v = valid();
+        v["idempotency_key"] = serde_json::json!("   ");
+        let raw = serde_json::to_vec(&v).unwrap();
+        assert!(authorize_payment(&raw).unwrap_err().contains("idempotency_key is required"));
+    }
+
+    #[test]
+    fn rejects_an_overlong_idempotency_key() {
+        let mut v = valid();
+        v["idempotency_key"] = serde_json::json!("k".repeat(129));
+        let raw = serde_json::to_vec(&v).unwrap();
+        assert!(authorize_payment(&raw).unwrap_err().contains("128 characters"));
+    }
+
+    #[test]
+    fn rejects_lowercase_currency() {
+        let mut v = valid();
+        v["currency"] = serde_json::json!("gbp");
+        let raw = serde_json::to_vec(&v).unwrap();
+        assert!(authorize_payment(&raw).unwrap_err().contains("ISO-4217"));
+    }
+
+    // ---- transport ----
+
+    #[test]
+    fn rejects_a_plaintext_endpoint() {
+        let mut v = valid();
+        v["endpoint"] = serde_json::json!("http://postman-echo.com/post");
+        let raw = serde_json::to_vec(&v).unwrap();
+        assert!(authorize_payment(&raw).unwrap_err().contains("must be https"));
+    }
+
+    // ---- schema ----
+
+    #[test]
+    fn rejects_a_missing_required_field() {
+        let v = serde_json::json!({ "amount_cents": 100, "currency": "GBP" });
+        let raw = serde_json::to_vec(&v).unwrap();
+        assert!(authorize_payment(&raw).unwrap_err().contains("bad input"));
+    }
+
+    #[test]
+    fn rejects_an_empty_object_and_an_empty_body() {
+        assert!(authorize_payment(b"{}").is_err());
+        assert!(authorize_payment(b"").is_err());
+    }
+
+    #[test]
+    fn rejects_a_json_array_at_the_top_level() {
+        assert!(authorize_payment(b"[1,2,3]").is_err());
+    }
+
+    #[test]
+    fn unicode_in_the_idempotency_key_is_allowed() {
+        // Not every unusual string is an attack. Only markers are.
+        let mut v = valid();
+        v["idempotency_key"] = serde_json::json!("call-\u{1F4DE}-turn-7");
+        let raw = serde_json::to_vec(&v).unwrap();
+        assert!(reject_inline_pii(&raw).is_ok());
+    }
+
+    #[test]
+    fn marker_count_is_unaffected_by_a_benign_double_brace_in_the_response() {
+        // The counter keys on the full prefix, not on braces alone, so an echo
+        // containing unrelated braces does not read as an unresolved marker.
+        assert_eq!(count_markers(b"{{ not a marker }}"), 0);
+        assert_eq!(count_markers(b"{{profile.x}} {{profile.y}}"), 2);
     }
 }

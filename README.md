@@ -2,16 +2,17 @@
 
 # Building on Terminal 3
 
-**A first integration: the ADK Quickstart and Walkthrough, completed end to end — with sixteen defects found on the way through**
+**A first integration: the ADK Quickstart and Walkthrough completed end to end, a second contract of my own built on top, and seventeen defects found on the way through**
 
 Hitansh Gopani · 8 August 2026
 
 [Full report (PDF)](docs/T3N-ADK-Submission-Hitansh-Gopani.pdf) ·
-[Defect report — 16 entries](docs/BUGS.md) ·
+[Defect report — 17 entries](docs/BUGS.md) ·
 [System design](docs/ARCHITECTURE.md) ·
+[Deployment record](docs/DEPLOYMENTS.md) ·
 [Raw transcripts](docs/RUN-LOG.md)
 
-`did:t3n:6ec29eeb5cb122d05e006391d2c954b2390032ed` · `contract_id 511` · testnet
+`did:t3n:6ec29eeb5cb122d05e006391d2c954b2390032ed` · `contract_id 511` + `516` · testnet
 
 [gopanihitansh5@gmail.com](mailto:gopanihitansh5@gmail.com) · [@Hitansh54](https://x.com/Hitansh54)
 
@@ -21,7 +22,11 @@ Hitansh Gopani · 8 August 2026
 
 I set out to answer one question: **can I put an AI agent in front of real customer data and a real payment rail without the data ever reaching the model?**
 
-Terminal 3's answer is `http-with-placeholders`, and it works. I compiled a Rust contract to a WASM component, registered it on testnet, granted an agent scoped authority over it, and invoked it — watching the enclave read a secret I could not see and make a real outbound call with it. Then I measured how long that takes, because I build voice agents and a payment that misses the conversational turn budget is a payment that doesn't ship.
+Terminal 3's answer is `http-with-placeholders`. To find out whether it actually holds, I did two things: completed the documented walkthrough with their reference contract, then **wrote my own contract that exercises the privacy mechanism directly and proves it worked** — by counting the markers it emits, then inspecting what the destination actually received. Zero survivors means the host substituted every one inside the enclave.
+
+It does hold. `markers_sent: 2, markers_unresolved: 0`, across every round.
+
+Then I measured how long it takes, because I build voice agents and a payment that misses the conversational turn budget is a payment that doesn't ship.
 
 What follows is what worked, what broke, and what I'd need before putting it in production.
 
@@ -131,22 +136,29 @@ Every component belongs to a timescale, and the timescale decides what it is all
 | Timescale | Component | Verdict |
 |:--|:--|:--|
 | **~150 ms** | TEE dispatch + WASM instantiation, no network | Cheap enough to sit anywhere on the path |
-| **~440 ms** | Dispatch + real outbound HTTPS to an external API | Fits one conversational turn — headroom is thin |
+| **~440 ms** | Dispatch + plain outbound HTTPS, no PII | Comfortable |
+| **~500 ms** median · **800 ms** p95 | **Dispatch + host-side placeholder resolution** | **Degrading band** — usable, but needs a spoken filler, not silence |
 | **~1,500 ms** | Session establishment (handshake + authenticate) | **Must be off the critical path** — pre-warm before the call connects |
 
 > [!IMPORTANT]
-> **The enclave is not the bottleneck — the network is.** Dispatch plus WASM instantiation costs 151 ms; the remaining 286 ms is egress. That is a genuinely good result for Terminal 3: confidential computing is not what costs you the conversation. But session establishment at ~1.5 s is decisive — an agent must hold an authenticated session open while the phone is still ringing, because it cannot afford to build one mid-call.
+> **I measured the wrong path first, and the correction matters.** `bench-latency.ts` timed `search-offers`, which uses plain `http` and carries no PII — 437 ms, comfortably inside a turn. But the payment path resolves markers, and that is extra work inside the enclave. Measured properly on `authorize-payment` (n=8): **504 ms median, 798 ms p95.** Marker resolution costs roughly **67 ms**.
+>
+> That moves the honest verdict from "fits comfortably" to "lands in the degrading band." Still shippable — but it needs the agent to say *"one moment, authorizing that"* rather than going silent, and it means the p95 is the number to design against, not the median.
+
+> [!TIP]
+> **The enclave is not the bottleneck — the network is.** Dispatch plus WASM instantiation costs 151 ms; the rest is egress. Confidential computing is not what costs you the conversation. Session establishment at ~1.5 s is the decisive constraint: an agent must hold an authenticated session open while the phone is still ringing, because it cannot afford to build one mid-call.
 
 ---
 
 ## SECTION 05 · DEFECTS
 
-Sixteen filed. Full repro, expected-versus-actual, and workaround for each in **[docs/BUGS.md](docs/BUGS.md)**.
+Seventeen filed. Full repro, expected-versus-actual, and workaround for each in **[docs/BUGS.md](docs/BUGS.md)**.
 
 | | # | Defect |
 |:--|:--|:--|
 | 🔴 | **002** | Reference contract's README and WIT document **opposite** PII security models |
 | 🔴 | **011** | Quickstart code doesn't run; the only available fix disables attestation |
+| 🟠 | **017** | Profile write schema and placeholder resolver disagree on field names |
 | 🟠 | **013** | Credit balance broken on all 4 surfaces — SDK *and* first-party CLI |
 | 🟠 | **012** | `getBalance()` throws inside the SDK's own decrypt path |
 | 🟠 | **010** | Invocation needs an undocumented KV map with a `contract_id`-keyed ACL |
