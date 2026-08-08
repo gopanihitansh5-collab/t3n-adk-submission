@@ -6,13 +6,13 @@
 
 Hitansh Gopani · 8 August 2026
 
-[Full report (PDF)](docs/T3N-ADK-Submission-Hitansh-Gopani.pdf) ·
+[Full report (PDF)](docs/T3N-ADK-Report-Hitansh-Gopani.pdf) ·
 [Defect report — 17 entries](docs/BUGS.md) ·
 [System design](docs/ARCHITECTURE.md) ·
 [Deployment record](docs/DEPLOYMENTS.md) ·
 [Raw transcripts](docs/RUN-LOG.md)
 
-`did:t3n:6ec29eeb5cb122d05e006391d2c954b2390032ed` · `contract_id 511` + `516` · testnet
+`did:t3n:6ec29eeb5cb122d05e006391d2c954b2390032ed` · `contract_id 511` + `517` · testnet
 
 [gopanihitansh5@gmail.com](mailto:gopanihitansh5@gmail.com) · [@Hitansh54](https://x.com/Hitansh54)
 
@@ -52,6 +52,7 @@ The consequence worth stating plainly: the LLM sits *beside* the secure path, ne
 ## SECTION 02 · WHAT COMPLETED
 
 ```diff
+  ## the documented walkthrough, with their reference contract
 + PASS  Claim API key + Agent DID
 + PASS  Quickstart — authenticate                 after supplying an undocumented field
 - FAIL  Quickstart — read credit balance          broken on all 4 published surfaces
@@ -60,16 +61,26 @@ The consequence worth stating plainly: the LLM sits *beside* the secure path, ne
 + PASS  Walkthrough — test                        7/7, documented command fails
 + PASS  Walkthrough — register                    contract_id 511
 + PASS  Walkthrough — invoke                      full TEE round trip to a live API
+
+  ## my own contract, built to test the privacy guarantee under attack
++ PASS  ppc-voice-pay — written                   Rust, 25 tests, plain cargo test
++ PASS  ppc-voice-pay — deployed                  contract_id 517
++ PASS  Privacy property — measured               2 markers sent, 0 unresolved
++ PASS  Adversarial verification                  5/5 refused as designed
+- FAIL  Version pinning                           pinned version ran latest — proven
 ```
 
 | Field | Value |
 |:--|:--|
 | **Agent / Tenant DID** | `did:t3n:6ec29eeb5cb122d05e006391d2c954b2390032ed` |
-| **Contract** | `z:6ec29eeb5cb122d05e006391d2c954b2390032ed:flight` @ `0.4.1` |
-| **contract_id** | `511` |
+| **Reference contract** | `z:6ec29eeb…32ed:flight` @ `0.4.1` — `contract_id 511` |
+| **My contract** | `z:6ec29eeb…32ed:voicepay` @ `0.2.0` — `contract_id 517` |
 | **Network** | testnet · `cn-api.sg.testnet.t3n.terminal3.io` |
-| **Artifact** | `z_tenant_flight.wasm` — 197,904 bytes |
+| **Artifacts** | `z_tenant_flight.wasm` 197,904 B · `ppc_voice_pay.wasm` 161,495 B |
 | **SDK / toolchain** | `@terminal3/t3n-sdk` 4.30.0 · Node 24.14.1 · Rust 1.97.1 |
+
+Full identifiers, quotas, ACLs, grants and transaction hashes in
+**[docs/DEPLOYMENTS.md](docs/DEPLOYMENTS.md)**.
 
 ### The lifecycle, and the three steps nobody documented
 
