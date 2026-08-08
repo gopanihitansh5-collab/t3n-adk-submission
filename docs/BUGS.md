@@ -112,9 +112,27 @@ Two discrepancies:
 1. The documented default (`production`) is wrong; the CLI defaults to `testnet`.
 2. The documented env list omits `sandbox`, which the CLI accepts.
 
-**Impact:** Low in consequence — the real default is the safe one — but a developer who
-trusts the docs will add `--env testnet` believing it is required to avoid spending
-against production, and will mis-model where their writes land.
+**The same wrong claim appears in the Quickstart snippet itself.** The published code
+carries this inline comment (see `screenshots/04-…`):
+
+```typescript
+setEnvironment("testnet"); // the SDK defaults to production — set this explicitly …
+```
+
+Verified false at runtime:
+
+```
+$ node -e "import('@terminal3/t3n-sdk').then(s=>console.log(s.getEnvironment()))"
+testnet
+```
+
+`NODE_URLS` confirms it — `testnet` and `sandbox` share one URL, and `getEnvironment()`
+returns `testnet` on a fresh import with nothing set.
+
+**Impact:** Low in consequence — the real default is the safe one — but the docs are
+wrong about their own SDK *and* their own CLI, in the same direction, in three places. A
+developer building a mental model of where their writes land is being misinformed
+consistently.
 
 ---
 

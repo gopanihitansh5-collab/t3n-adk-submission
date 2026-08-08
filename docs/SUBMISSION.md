@@ -2,7 +2,7 @@
 
 **Submitted by:** Hitansh Gopani — AI/ML Engineer, Pitch Perfekt Collective
 **Date:** 8 August 2026
-**Repo:** https://github.com/<org>/t3n-adk-submission
+**Repo:** https://github.com/gopanihitansh5-collab/t3n-adk-submission
 **Agent / Tenant DID:** `did:t3n:6ec29eeb5cb122d05e006391d2c954b2390032ed`
 
 ---
@@ -31,12 +31,20 @@ provide.
 | Walkthrough — register | ✅ `contract_id 511` |
 | Walkthrough — invoke | ✅ full TEE round trip to a live external API |
 
-*Screenshot 01 — quickstart authentication: DID resolved*
-*Screenshot 02 — cargo build to wasm32-wasip2*
-*Screenshot 03 — contract unit tests, 7 passed*
-*Screenshot 04 — contract registered, contract_id 511*
-*Screenshot 05 — `t3n whoami` resolving the Agent ID*
-*Screenshot 06 — contract invoked, reaching Duffel from inside the TEE*
+### Evidence
+
+Captured live from Terminal 3's own published pages — these are the source documents, not
+my reproduction of them.
+
+| Screenshot | Shows |
+|---|---|
+| `01-bug002-readme-claims-full-PII.jpg` | `z-tenant-flight` README: "`book-offer` — POST to Duffel `/air/orders` **with full passenger PII**", and the header reading **v0.3.0** against a `Cargo.toml` of `0.4.1` (BUG-002, BUG-007) |
+| `02-bug002-bug005-privacy-guarantee-and-missing-capability.jpg` | The README's "Privacy guarantee: passenger PII … **is passed in by the agent**", directly above a `host_capabilities` manifest that omits `http_with_placeholders` (BUG-002, BUG-005) |
+| `03-bug002-wit-says-carries-NO-PII.jpg` | `wit/world.wit` line 49: "**Carries NO passenger PII**: the contract templates `{{profile.<field>}}` markers … the host resolves them" — the exact contradiction (BUG-002) |
+| `04-bug011-quickstart-snippet-has-no-trustAnchor.jpg` | The Quickstart's published `new T3nClient({ wasmComponent, handlers })` — **no `trustAnchor`**, the omission that makes the tutorial throw. Also visible: the inline comment "the SDK defaults to production", which is false (BUG-011, BUG-004) |
+
+Terminal transcripts for every command are reproduced verbatim in
+[`docs/RUN-LOG.md`](RUN-LOG.md).
 
 ---
 
